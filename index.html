@@ -34,47 +34,82 @@
   <div class="value" id="value"></div>
   <div class="hint" id="hint">Press Cmd+C (Mac) or Ctrl+C (Windows) to copy this value, then close the tab.</div>
   <script>
-    (async function () {
+    (function () {
       var params = new URLSearchParams(window.location.search);
       var VALUE = params.get('value') || '';
       var LABEL = params.get('label') || 'Field';
+      var done = false;
 
-      // Modern Clipboard API — should work in this top-level (non-iframe) context.
-      try {
-        await navigator.clipboard.writeText(VALUE);
+      async function tryCopy() {
+        if (done) return true;
+        // Modern Clipboard API
+        try {
+          await navigator.clipboard.writeText(VALUE);
+          return true;
+        } catch (e) { /* fall through */ }
+        // Legacy execCommand
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = VALUE;
+          ta.style.position = 'fixed';
+          ta.style.top = '0';
+          ta.style.left = '0';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          var ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+          if (ok) return true;
+        } catch (e) { /* fall through */ }
+        return false;
+      }
+
+      function finishSuccess() {
+        if (done) return;
+        done = true;
         window.close();
-        return;
-      } catch (e) { /* fall through */ }
+      }
 
-      // Legacy execCommand fallback with hidden textarea — works without permissions policy.
-      try {
-        var ta = document.createElement('textarea');
-        ta.value = VALUE;
-        ta.style.position = 'fixed';
-        ta.style.top = '0';
-        ta.style.left = '0';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.focus();
-        ta.select();
-        var ok = document.execCommand('copy');
-        document.body.removeChild(ta);
-        if (ok) {
-          window.close();
-          return;
+      function showFallback() {
+        if (done) return;
+        done = true;
+        document.body.classList.add('fail');
+        document.getElementById('msg').textContent = LABEL;
+        document.title = 'Copy — Tree Boss';
+        var v = document.getElementById('value');
+        v.textContent = VALUE;
+        var range = document.createRange();
+        range.selectNodeContents(v);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+      }
+
+      async function attempt() {
+        if (done) return;
+        if (await tryCopy()) {
+          finishSuccess();
         }
-      } catch (e) { /* fall through */ }
+      }
 
-      // Both APIs failed — show the value pre-selected so user can Cmd+C manually.
-      document.body.classList.add('fail');
-      document.getElementById('msg').textContent = LABEL;
-      document.title = 'Copy — Tree Boss';
-      var v = document.getElementById('value');
-      v.textContent = VALUE;
-      var range = document.createRange();
-      range.selectNodeContents(v);
-      window.getSelection().removeAllRanges();
-      window.getSelection().addRange(range);
+      // Strategy: try immediately, then again on every focus / visibility change
+      // for up to 2.5 seconds. Tabs opened in background (cmd-click, middle-click,
+      // browser settings) start without focus, and both clipboard APIs require
+      // document.hasFocus() === true. Retrying on focus events catches the moment
+      // the user switches to (or the browser grants focus to) this tab.
+      attempt();
+      window.addEventListener('focus', attempt);
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) attempt();
+      });
+      // Also retry a few times in the first second just in case focus arrived
+      // silently between events.
+      setTimeout(attempt, 100);
+      setTimeout(attempt, 300);
+      setTimeout(attempt, 700);
+      setTimeout(attempt, 1500);
+      // Final timeout — show the manual UI if we still haven't copied.
+      setTimeout(function () { if (!done) showFallback(); }, 2500);
     })();
   </script>
 </body>
