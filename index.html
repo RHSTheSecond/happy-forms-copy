@@ -4,60 +4,72 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>Copying…</title>
+  <title>Copy — Tree Boss</title>
   <style>
-    html, body { margin: 0; padding: 0; height: 100%; }
+    :root { --vtc:#600C54; --vtc2:#781878; --green:#137333; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; min-height: 100%; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #137333; color: #fff;
-      display: flex; align-items: center; justify-content: center;
+      background: #faf7fb; color: #202124;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px; padding: 28px 20px;
     }
-    body.fail {
-      background: #fff; color: #202124;
-      flex-direction: column; padding: 24px;
-      align-items: flex-start; justify-content: flex-start;
+    .label { font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #5f6368; }
+    #btn {
+      font: inherit; font-size: 18px; font-weight: 700; color: #fff; background: var(--vtc);
+      border: none; border-radius: 12px; padding: 16px 30px; cursor: pointer; min-width: 240px;
+      box-shadow: 0 2px 6px rgba(96,12,84,.25); transition: background .15s, transform .05s;
     }
-    .msg { font-size: 28px; font-weight: 600; }
-    .fail .msg { font-size: 14px; color: #5f6368; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; font-weight: 600; }
+    #btn:hover { background: var(--vtc2); }
+    #btn:active { transform: translateY(1px); }
+    #btn.ok { background: var(--green); box-shadow: none; }
     .value {
-      font-size: 18px; padding: 18px; background: #f1f3f4; border-radius: 10px;
-      word-break: break-word; white-space: pre-wrap; user-select: all;
-      line-height: 1.5; max-width: 640px; width: 100%; box-sizing: border-box;
-      display: none;
+      font-size: 20px; line-height: 1.5; padding: 16px 18px; background: #f1f3f4; border-radius: 12px;
+      max-width: 680px; width: 100%; word-break: break-word; white-space: pre-wrap;
+      user-select: all; -webkit-user-select: all; cursor: text;
     }
-    .hint { color: #5f6368; margin-top: 12px; font-size: 13px; display: none; }
-    .fail .value, .fail .hint { display: block; }
+    .hint { font-size: 13px; color: #5f6368; text-align: center; max-width: 680px; }
   </style>
 </head>
 <body>
-  <div class="msg" id="msg">✓ Copied</div>
+  <div class="label" id="label">Field</div>
+  <button id="btn" type="button">📋 Copy</button>
   <div class="value" id="value"></div>
-  <div class="hint" id="hint">Press Cmd+C (Mac) or Ctrl+C (Windows) to copy this value, then close the tab.</div>
+  <div class="hint" id="hint">Tap <b>Copy</b> above — or select the text and press Ctrl/Cmd + C.</div>
   <script>
     (function () {
       var params = new URLSearchParams(window.location.search);
       var VALUE = params.get('value') || '';
       var LABEL = params.get('label') || 'Field';
-      var done = false;
+      var elLabel = document.getElementById('label');
+      var elBtn = document.getElementById('btn');
+      var elValue = document.getElementById('value');
+      var elHint = document.getElementById('hint');
 
-      async function tryCopy() {
-        if (done) return true;
-        // Modern Clipboard API
+      elLabel.textContent = LABEL;
+      elValue.textContent = VALUE;
+      elBtn.textContent = '📋 Copy ' + LABEL;
+      document.title = 'Copy ' + LABEL + ' — Tree Boss';
+
+      function selectValue() {
         try {
-          await navigator.clipboard.writeText(VALUE);
-          return true;
-        } catch (e) { /* fall through */ }
-        // Legacy execCommand
+          var r = document.createRange();
+          r.selectNodeContents(elValue);
+          var sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(r);
+        } catch (e) { /* ignore */ }
+      }
+
+      async function doCopy() {
+        // Clipboard API (needs a user gesture / focus — reliable from the button click).
+        try { await navigator.clipboard.writeText(VALUE); return true; } catch (e) { /* fall through */ }
+        // Legacy execCommand fallback.
         try {
           var ta = document.createElement('textarea');
-          ta.value = VALUE;
-          ta.style.position = 'fixed';
-          ta.style.top = '0';
-          ta.style.left = '0';
-          ta.style.opacity = '0';
-          document.body.appendChild(ta);
-          ta.focus();
-          ta.select();
+          ta.value = VALUE; ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.focus(); ta.select();
           var ok = document.execCommand('copy');
           document.body.removeChild(ta);
           if (ok) return true;
@@ -65,51 +77,22 @@
         return false;
       }
 
-      function finishSuccess() {
-        if (done) return;
-        done = true;
-        window.close();
+      function markCopied() {
+        elBtn.textContent = '✓ Copied ' + LABEL;
+        elBtn.classList.add('ok');
+        elHint.textContent = 'Copied to your clipboard — you can close this tab.';
       }
 
-      function showFallback() {
-        if (done) return;
-        done = true;
-        document.body.classList.add('fail');
-        document.getElementById('msg').textContent = LABEL;
-        document.title = 'Copy — Tree Boss';
-        var v = document.getElementById('value');
-        v.textContent = VALUE;
-        var range = document.createRange();
-        range.selectNodeContents(v);
-        window.getSelection().removeAllRanges();
-        window.getSelection().addRange(range);
-      }
-
-      async function attempt() {
-        if (done) return;
-        if (await tryCopy()) {
-          finishSuccess();
-        }
-      }
-
-      // Strategy: try immediately, then again on every focus / visibility change
-      // for up to 2.5 seconds. Tabs opened in background (cmd-click, middle-click,
-      // browser settings) start without focus, and both clipboard APIs require
-      // document.hasFocus() === true. Retrying on focus events catches the moment
-      // the user switches to (or the browser grants focus to) this tab.
-      attempt();
-      window.addEventListener('focus', attempt);
-      document.addEventListener('visibilitychange', function () {
-        if (!document.hidden) attempt();
+      // The button is the RELIABLE path — a real click is a user gesture the clipboard needs.
+      elBtn.addEventListener('click', async function () {
+        if (await doCopy()) markCopied(); else selectValue();
       });
-      // Also retry a few times in the first second just in case focus arrived
-      // silently between events.
-      setTimeout(attempt, 100);
-      setTimeout(attempt, 300);
-      setTimeout(attempt, 700);
-      setTimeout(attempt, 1500);
-      // Final timeout — show the manual UI if we still haven't copied.
-      setTimeout(function () { if (!done) showFallback(); }, 2500);
+
+      // Best-effort auto-copy on load (works on clients that grant focus/activation to the
+      // opened tab). If it fails, the value is pre-selected and the Copy button is right there.
+      (async function () {
+        if (await doCopy()) markCopied(); else selectValue();
+      })();
     })();
   </script>
 </body>
