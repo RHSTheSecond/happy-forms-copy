@@ -80,7 +80,11 @@
       function markCopied() {
         elBtn.textContent = '✓ Copied ' + LABEL;
         elBtn.classList.add('ok');
-        elHint.textContent = 'Copied to your clipboard — you can close this tab.';
+        elHint.textContent = 'Copied to your clipboard.';
+        // Restore the old auto-close after a successful copy (from the button click OR the
+        // on-load auto-copy). Works where the browser lets the opened tab self-close — which is
+        // what happened before the rewrite; harmless (message stays) if the browser blocks it.
+        setTimeout(function () { try { window.close(); } catch (e) {} }, 200);
       }
 
       // The button is the RELIABLE path — a real click is a user gesture the clipboard needs.
