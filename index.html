@@ -77,19 +77,34 @@
         return false;
       }
 
-      function markCopied() {
+      function tryClose() {
+        // Browsers only let a page close a tab it "owns" (script-opened, or a single-history-
+        // entry tab). Chat's link wrapper usually breaks that, so: attempt the plain close, then
+        // the legacy self-adopt trick, and if the tab is still visible shortly after, stop
+        // pretending — tell the user it's safe to close.
+        try { window.close(); } catch (e) {}
+        try { window.open('', '_self'); window.close(); } catch (e) {}
+        setTimeout(function () {
+          if (document.visibilityState === 'visible') {
+            elHint.innerHTML = 'Copied — this browser won’t let the tab close itself, ' +
+                               'so just close it when you’re done.';
+          }
+        }, 400);
+      }
+
+      function markCopied(fromGesture) {
         elBtn.textContent = '✓ Copied ' + LABEL;
         elBtn.classList.add('ok');
         elHint.textContent = 'Copied to your clipboard.';
-        // Restore the old auto-close after a successful copy (from the button click OR the
-        // on-load auto-copy). Works where the browser lets the opened tab self-close — which is
-        // what happened before the rewrite; harmless (message stays) if the browser blocks it.
-        setTimeout(function () { try { window.close(); } catch (e) {} }, 200);
+        // Close attempts must run INSIDE the user gesture to have any chance — a setTimeout
+        // lands after the click's transient activation has expired and is always refused.
+        if (fromGesture) tryClose();
+        else setTimeout(tryClose, 150);
       }
 
       // The button is the RELIABLE path — a real click is a user gesture the clipboard needs.
       elBtn.addEventListener('click', async function () {
-        if (await doCopy()) markCopied(); else selectValue();
+        if (await doCopy()) markCopied(true); else selectValue();
       });
 
       // Best-effort auto-copy on load (works on clients that grant focus/activation to the
